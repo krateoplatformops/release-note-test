@@ -18,6 +18,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install standard-version
+        run: npm install -g standard-version
+
+      - name: Generate changelog
+        run: standard-version --release-as ${{ github.ref_name }}
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -26,4 +37,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+          discussion_category_name: release note
           make_latest: true
+          body_path: CHANGELOG.md
