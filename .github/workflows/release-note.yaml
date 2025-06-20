@@ -15,6 +15,13 @@ jobs:
       contents: write
 
     steps:
+      - name: Authenticate with GitHub App
+        id: authenticate
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -24,3 +31,5 @@ jobs:
         with:
           version: ${{ github.ref_name }}
           publish: true
+        env:
+          GITHUB_TOKEN: ${{ steps.authenticate.outputs.token }}
