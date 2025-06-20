@@ -41,4 +41,4 @@ template: |
 
   $CHANGES
 
-  **Full Changelog**: [View changes](https://github.com/{{owner}}/{{repo}}/compare/{{previousTag}}...{{currentTag}})
+  **Full Changelog**: [Compare changes](https://github.com/$OWNER/$REPO/compare/$PREVIOUS_TAG...$TAG)
