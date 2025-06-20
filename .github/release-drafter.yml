@@ -1,4 +1,4 @@
-name-template: 'v$NEXT_PATCH_VERSION'
+name-template: '$NEXT_PATCH_VERSION'
 tag-template: 'v$NEXT_PATCH_VERSION'
 
 categories:
@@ -41,4 +41,4 @@ template: |
 
   $CHANGES
 
-  **Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREVIOUS_TAG...$NEXT_TAG
+  **Full Changelog**: [View changes](https://github.com/{{owner}}/{{repo}}/compare/{{previousTag}}...{{currentTag}})
