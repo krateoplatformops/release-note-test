@@ -31,6 +31,7 @@ jobs:
         with:
           version: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
+          tag: ${{ github.ref_name }}
           publish: true
         env:
           GITHUB_TOKEN: ${{ steps.authenticate.outputs.token }}
