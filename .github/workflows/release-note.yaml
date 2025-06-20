@@ -1,0 +1,26 @@
+name: release-note
+
+on:
+  push:
+    branches:
+      - main    
+    tags: ["[0-9]+.[0-9]+.[0-9]+"]
+
+
+jobs:
+  build:
+    name: Generate release note
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
