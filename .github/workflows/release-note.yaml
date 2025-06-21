@@ -1,15 +1,14 @@
-name: release-note
+name: Create GitHub Release
 
 on:
   push:
     tags: ["[0-9]+.[0-9]+.[0-9]+"]
 
 jobs:
-  build:
-    name: Generate release note
-
+  release:
+    name: Generate Release from Tag
     runs-on: ubuntu-latest
-    
+
     permissions:
       contents: write
 
@@ -24,39 +23,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0 # required to access full git history
 
-      - name: Extract version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Configure Git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Install release tooling
+        run: npm install -g conventional-changelog-conventionalcommits conventional-changelog-cli
 
-      - name: Generate changelog from conventional commits
+      - name: Generate release notes
         id: changelog
-        uses: TriPSs/conventional-changelog-action@v5
-        with:
-          github-token: ${{ steps.authenticate.outputs.token }}
-          preset: 'conventionalcommits'
-          tag-prefix: ''
-          output-file: 'CHANGELOG.md'
-          release-count: 0
-          skip-version-file: true
-          skip-commit: true
-          skip-on-empty: false
-          git-push: false
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          echo "Generating changelog for $VERSION"
+          conventional-changelog -p conventionalcommits -r 0 > release-notes.md
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          cat release-notes.md >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.VERSION }}
-          name: ${{ steps.version.outputs.VERSION }}
-          body: ${{ steps.changelog.outputs.clean_changelog }}
-          draft: false
-          prerelease: false
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body: ${{ env.RELEASE_NOTES }}
         env:
           GITHUB_TOKEN: ${{ steps.authenticate.outputs.token }}
