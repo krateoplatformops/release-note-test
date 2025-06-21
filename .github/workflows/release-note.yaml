@@ -33,5 +33,7 @@ jobs:
           name: ${{ github.ref_name }}
           tag: ${{ github.ref_name }}
           publish: true
+          # Override the default config to use the current tag
+          config-name: release-drafter.yml
         env:
           GITHUB_TOKEN: ${{ steps.authenticate.outputs.token }}
