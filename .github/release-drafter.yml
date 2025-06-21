@@ -1,44 +1,65 @@
 name-template: '$NEXT_PATCH_VERSION'
 tag-template: '$NEXT_PATCH_VERSION'
 
+# Use conventional commits instead of PR labels
+version-resolver:
+  major:
+    labels: []
+  minor:
+    labels: []
+  patch:
+    labels: []
+  default: patch
+
+# Configure conventional commits parsing
+commitish: HEAD
+include-pre-releases: false
+
+# Categories based on conventional commit types
 categories:
   - title: 🚀 Features
-    labels:
-      - feat
+    labels: []
+    # Match conventional commits with "feat" type
+    commit-pattern: '^feat(\(.+\))?\!?:'
   - title: 🐛 Bug Fixes
-    labels:
-      - fix
+    labels: []
+    commit-pattern: '^fix(\(.+\))?\!?:'
   - title: 🔧 Chores
-    labels:
-      - chore
+    labels: []
+    commit-pattern: '^chore(\(.+\))?\!?:'
   - title: 🧪 Tests
-    labels:
-      - test
+    labels: []
+    commit-pattern: '^test(\(.+\))?\!?:'
   - title: 📝 Documentation
-    labels:
-      - docs
+    labels: []
+    commit-pattern: '^docs(\(.+\))?\!?:'
   - title: ⚙️ Refactoring
-    labels:
-      - refactor
+    labels: []
+    commit-pattern: '^refactor(\(.+\))?\!?:'
   - title: ♻️ Code Style
-    labels:
-      - style
+    labels: []
+    commit-pattern: '^style(\(.+\))?\!?:'
   - title: 📦 Build
-    labels:
-      - build
+    labels: []
+    commit-pattern: '^build(\(.+\))?\!?:'
   - title: 🚦 CI
-    labels:
-      - ci
+    labels: []
+    commit-pattern: '^ci(\(.+\))?\!?:'
+  - title: ⚡ Performance
+    labels: []
+    commit-pattern: '^perf(\(.+\))?\!?:'
 
-change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+# Template for individual commit entries
+change-template: '- $TITLE'
 no-changes-template: '- No changes'
 
-exclude-labels:
-  - skip-changelog
+# Exclude merge commits and commits that don't follow conventional format
+exclude-contributors:
+  - 'dependabot'
 
 template: |
   ## What's Changed
 
   $CHANGES
 
-  **Full Changelog**: [Compare changes](https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...$TAG)
+  **Full Changelog**: [Compare changes](https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...$RESOLVED_VERSION)
