@@ -30,28 +30,142 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+          echo "Previous tag: $PREV_TAG"
+
       - name: Generate changelog from conventional commits
         id: changelog
-        uses: TriPSs/conventional-changelog-action@v4
-        with:
-          github-token: ${{ steps.authenticate.outputs.token }}
-          version-file: './package.json'
-          version-path: 'version'
-          preset: 'conventionalcommits'
-          tag-prefix: ''
-          output-file: 'CHANGELOG.md'
-          release-count: 0
-          skip-version-file: true
-          skip-commit: true
-          skip-ci: true
-          git-push: false
+        run: |
+          if [ -n "${{ steps.prev_tag.outputs.PREV_TAG }}" ]; then
+            COMMIT_RANGE="${{ steps.prev_tag.outputs.PREV_TAG }}..${{ steps.version.outputs.VERSION }}"
+            echo "Commit range: $COMMIT_RANGE"
+          else
+            COMMIT_RANGE="${{ steps.version.outputs.VERSION }}"
+            echo "First release, using tag: $COMMIT_RANGE"
+          fi
+          
+          # Function to clean commit messages (remove conventional commit prefix)
+          clean_message() {
+            echo "$1" | sed -E 's/^[a-zA-Z]+(\([^)]+\))?\!?: //'
+          }
+          
+          # Generate changelog sections
+          FEATURES=$(git log $COMMIT_RANGE --oneline --grep="^feat" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          FIXES=$(git log $COMMIT_RANGE --oneline --grep="^fix" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          CHORES=$(git log $COMMIT_RANGE --oneline --grep="^chore" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          DOCS=$(git log $COMMIT_RANGE --oneline --grep="^docs" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          TESTS=$(git log $COMMIT_RANGE --oneline --grep="^test" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          REFACTOR=$(git log $COMMIT_RANGE --oneline --grep="^refactor" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          STYLE=$(git log $COMMIT_RANGE --oneline --grep="^style" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          BUILD=$(git log $COMMIT_RANGE --oneline --grep="^build" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          CI=$(git log $COMMIT_RANGE --oneline --grep="^ci" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          PERF=$(git log $COMMIT_RANGE --oneline --grep="^perf" --pretty=format:"%s" | while read line; do echo "- $(clean_message "$line")"; done)
+          
+          # Build changelog
+          CHANGELOG="## What's Changed"
+          
+          if [ -n "$FEATURES" ]; then
+            CHANGELOG="$CHANGELOG
+
+### 🚀 Features
+$FEATURES"
+          fi
+          
+          if [ -n "$FIXES" ]; then
+            CHANGELOG="$CHANGELOG
+
+### 🐛 Bug Fixes
+$FIXES"
+          fi
+          
+          if [ -n "$CHORES" ]; then
+            CHANGELOG="$CHANGELOG
+
+### 🔧 Chores
+$CHORES"
+          fi
+          
+          if [ -n "$DOCS" ]; then
+            CHANGELOG="$CHANGELOG
+
+### 📝 Documentation
+$DOCS"
+          fi
+          
+          if [ -n "$TESTS" ]; then
+            CHANGELOG="$CHANGELOG
+
+### 🧪 Tests
+$TESTS"
+          fi
+          
+          if [ -n "$REFACTOR" ]; then
+            CHANGELOG="$CHANGELOG
+
+### ⚙️ Refactoring
+$REFACTOR"
+          fi
+          
+          if [ -n "$STYLE" ]; then
+            CHANGELOG="$CHANGELOG
+
+### ♻️ Code Style
+$STYLE"
+          fi
+          
+          if [ -n "$BUILD" ]; then
+            CHANGELOG="$CHANGELOG
+
+### 📦 Build
+$BUILD"
+          fi
+          
+          if [ -n "$CI" ]; then
+            CHANGELOG="$CHANGELOG
+
+### 🚦 CI
+$CI"
+          fi
+          
+          if [ -n "$PERF" ]; then
+            CHANGELOG="$CHANGELOG
+
+### ⚡ Performance
+$PERF"
+          fi
+          
+          # Add full changelog link
+          if [ -n "${{ steps.prev_tag.outputs.PREV_TAG }}" ]; then
+            CHANGELOG="$CHANGELOG
+
+**Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.PREV_TAG }}...${{ steps.version.outputs.VERSION }}"
+          fi
+          
+          # Handle case where no conventional commits are found
+          if [ "$CHANGELOG" = "## What's Changed" ]; then
+            CHANGELOG="$CHANGELOG
+
+- No changes following conventional commit format found"
+          fi
+          
+          # Output the changelog
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "Generated changelog:"
+          echo "$CHANGELOG"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
           name: ${{ steps.version.outputs.VERSION }}
-          body: ${{ steps.changelog.outputs.clean_changelog }}
+          body: ${{ steps.changelog.outputs.CHANGELOG }}
           draft: false
           prerelease: false
         env:
