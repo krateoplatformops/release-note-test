@@ -1,5 +1,5 @@
 name-template: '$NEXT_PATCH_VERSION'
-tag-template: 'v$NEXT_PATCH_VERSION'
+tag-template: '$NEXT_PATCH_VERSION'
 
 categories:
   - title: 🚀 Features
@@ -41,4 +41,4 @@ template: |
 
   $CHANGES
 
-  **Full Changelog**: [Compare changes](https://github.com/$OWNER/$REPO/compare/$PREVIOUS_TAG...$TAG)
+  **Full Changelog**: [Compare changes](https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...$TAG)
