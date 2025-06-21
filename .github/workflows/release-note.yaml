@@ -4,7 +4,6 @@ on:
   push:
     tags: ["[0-9]+.[0-9]+.[0-9]+"]
 
-
 jobs:
   build:
     name: Generate release note
@@ -24,16 +23,36 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Generate release notes from draft
-        id: release-notes
-        uses: release-drafter/release-drafter@v6
         with:
-          version: ${{ github.ref_name }}
-          name: ${{ github.ref_name }}
-          tag: ${{ github.ref_name }}
-          publish: true
-          # Override the default config to use the current tag
-          config-name: release-drafter.yml
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog from conventional commits
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@v4
+        with:
+          github-token: ${{ steps.authenticate.outputs.token }}
+          version-file: './package.json'
+          version-path: 'version'
+          preset: 'conventionalcommits'
+          tag-prefix: ''
+          output-file: 'CHANGELOG.md'
+          release-count: 0
+          skip-version-file: true
+          skip-commit: true
+          skip-ci: true
+          git-push: false
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          name: ${{ steps.version.outputs.VERSION }}
+          body: ${{ steps.changelog.outputs.clean_changelog }}
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ steps.authenticate.outputs.token }}
