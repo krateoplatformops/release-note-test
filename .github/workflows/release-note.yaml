@@ -20,34 +20,57 @@ jobs:
           app_id: ${{ secrets.APP_ID }}
           private_key: ${{ secrets.PRIVATE_KEY }}
 
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # required to access full git history
+          fetch-depth: 0
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install release tooling
-        run: npm install -g conventional-changelog-conventionalcommits conventional-changelog-cli
-
-      - name: Generate release notes
-        id: changelog
+      - name: Generate Release Notes
+        id: notes
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          echo "Generating changelog for $VERSION"
-          conventional-changelog -p conventionalcommits -r 0 > release-notes.md
-          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
-          cat release-notes.md >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Get the tag name
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          
+          # Generate changelog from conventional commits
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"%s" $PREV_TAG..HEAD)
+          else
+            COMMITS=$(git log --pretty=format:"%s")
+          fi
+          
+          # Create release notes
+          echo "## What's Changed" > release_notes.md
+          echo "" >> release_notes.md
+          
+          # Parse conventional commits
+          echo "$COMMITS" | while IFS= read -r commit; do
+            if [[ $commit =~ ^feat(\(.+\))?: ]]; then
+              echo "### ✨ Features" >> release_notes.md
+              echo "- $commit" >> release_notes.md
+            elif [[ $commit =~ ^fix(\(.+\))?: ]]; then
+              echo "### 🐛 Bug Fixes" >> release_notes.md
+              echo "- $commit" >> release_notes.md
+            elif [[ $commit =~ ^docs(\(.+\))?: ]]; then
+              echo "### 📚 Documentation" >> release_notes.md
+              echo "- $commit" >> release_notes.md
+            elif [[ $commit =~ ^(refactor|perf|test|build|ci)(\(.+\))?: ]]; then
+              echo "### 🔧 Other Changes" >> release_notes.md
+              echo "- $commit" >> release_notes.md
+            fi
+          done
+          
+          # Set output
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
-          body: ${{ env.RELEASE_NOTES }}
+      - name: Create Release from Tag
         env:
           GITHUB_TOKEN: ${{ steps.authenticate.outputs.token }}
+        run: |
+          gh release create ${{ steps.notes.outputs.tag_name }} \
+            --title "Release ${{ steps.notes.outputs.tag_name }}" \
+            --notes-file release_notes.md \
+            --draft=false \
+            --prerelease=false
