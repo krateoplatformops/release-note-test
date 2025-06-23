@@ -27,33 +27,27 @@ jobs:
 
       - name: Generate Release Notes
         id: notes
+        env:
+          GH_TOKEN: ${{ steps.authenticate.outputs.token }}
         run: |
-          # Get the tag name
           TAG_NAME=${GITHUB_REF#refs/tags/}
-          
-          # Get previous tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           
-          # Generate changelog from conventional commits with commit hashes and links
           if [ -n "$PREV_TAG" ]; then
             COMMITS=$(git log --pretty=format:"%H|%s|%an" $PREV_TAG..HEAD)
           else
             COMMITS=$(git log --pretty=format:"%H|%s|%an")
           fi
           
-          # Create release notes
           echo "## What's Changed" > release_notes.md
           echo "" >> release_notes.md
           
-          # Initialize section flags
           FEATURES_ADDED=false
           FIXES_ADDED=false
           DOCS_ADDED=false
           OTHER_ADDED=false
           
-          # Parse conventional commits
           echo "$COMMITS" | while IFS='|' read -r hash message author; do
-            # Get short hash for display
             SHORT_HASH=$(echo $hash | cut -c1-7)
             COMMIT_URL="https://github.com/${{ github.repository }}/commit/$hash"
             
@@ -88,46 +82,38 @@ jobs:
             fi
           done
           
-          # Add contributors section
           echo "" >> release_notes.md
           echo "### 👥 Contributors" >> release_notes.md
           echo "" >> release_notes.md
           
-          # Get unique contributors using GitHub API to get actual GitHub usernames
           if [ -n "$PREV_TAG" ]; then
             COMMIT_HASHES=$(git log --pretty=format:"%H" $PREV_TAG..HEAD)
           else
             COMMIT_HASHES=$(git log --pretty=format:"%H")
           fi
-          
-          # Create temporary file for contributors
+
           > contributors_temp.txt
-          
+
           echo "$COMMIT_HASHES" | while IFS= read -r commit_hash; do
-            # Get GitHub username from commit API
-            GITHUB_USER=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            GITHUB_USER=$(curl -s -H "Authorization: token $GH_TOKEN" \
               "https://api.github.com/repos/${{ github.repository }}/commits/$commit_hash" \
-              | grep -o '"login":"[^"]*"' | head -1 | cut -d'"' -f4)
-            
+              | jq -r '.author.login // empty')
             if [ -n "$GITHUB_USER" ]; then
               echo "$GITHUB_USER" >> contributors_temp.txt
             fi
           done
-          
-          # Sort, deduplicate, and add contributors to release notes
+
           sort contributors_temp.txt | uniq | while IFS= read -r username; do
             echo "- @$username" >> release_notes.md
           done
-          
+
           rm -f contributors_temp.txt
           
-          # Add comparison link if previous tag exists
           if [ -n "$PREV_TAG" ]; then
             echo "" >> release_notes.md
             echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...$TAG_NAME" >> release_notes.md
           fi
           
-          # Set output
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
       - name: Create Release from Tag
