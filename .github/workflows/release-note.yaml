@@ -93,16 +93,54 @@ jobs:
           echo "### 👥 Contributors" >> release_notes.md
           echo "" >> release_notes.md
           
-          # Get unique contributors
+          # Get unique contributors by email and resolve to GitHub usernames
           if [ -n "$PREV_TAG" ]; then
-            CONTRIBUTORS=$(git log --pretty=format:"%an" $PREV_TAG..HEAD | sort | uniq)
+            CONTRIBUTOR_EMAILS=$(git log --pretty=format:"%ae" $PREV_TAG..HEAD | sort | uniq)
           else
-            CONTRIBUTORS=$(git log --pretty=format:"%an" | sort | uniq)
+            CONTRIBUTOR_EMAILS=$(git log --pretty=format:"%ae" | sort | uniq)
           fi
           
-          echo "$CONTRIBUTORS" | while IFS= read -r contributor; do
-            echo "- @$contributor" >> release_notes.md
+          # Create temporary file for contributors
+          > contributors_temp.txt
+          
+          echo "$CONTRIBUTOR_EMAILS" | while IFS= read -r email; do
+            # Try to get GitHub username from commit author
+            GITHUB_USER=$(git log --author="$email" --pretty=format:"%an" -1)
+            
+            # Use GitHub API to search for user by email (if available)
+            if command -v curl >/dev/null 2>&1; then
+              # Try to find GitHub username via API search
+              API_RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                "https://api.github.com/search/users?q=$email" 2>/dev/null || echo "")
+              
+              if echo "$API_RESPONSE" | grep -q '"total_count":1'; then
+                GITHUB_USERNAME=$(echo "$API_RESPONSE" | grep -o '"login":"[^"]*"' | head -1 | cut -d'"' -f4)
+                if [ -n "$GITHUB_USERNAME" ]; then
+                  echo "- @$GITHUB_USERNAME" >> contributors_temp.txt
+                  continue
+                fi
+              fi
+            fi
+            
+            # Fallback: extract potential username from email
+            if [[ $email == *"@users.noreply.github.com" ]]; then
+              # GitHub noreply email format: username@users.noreply.github.com or ID+username@users.noreply.github.com
+              USERNAME=$(echo "$email" | sed 's/@users\.noreply\.github\.com$//' | sed 's/^[0-9]*+//')
+              echo "- @$USERNAME" >> contributors_temp.txt
+            elif [[ $email == *"@github.com" ]]; then
+              # Direct GitHub email
+              USERNAME=$(echo "$email" | sed 's/@github\.com$//')
+              echo "- @$USERNAME" >> contributors_temp.txt
+            else
+              # Fallback to git author name
+              GIT_AUTHOR=$(git log --author="$email" --pretty=format:"%an" -1)
+              echo "- $GIT_AUTHOR" >> contributors_temp.txt
+            fi
           done
+          
+          # Sort and add unique contributors to release notes
+          sort contributors_temp.txt | uniq >> release_notes.md
+          rm -f contributors_temp.txt
           
           # Add comparison link if previous tag exists
           if [ -n "$PREV_TAG" ]; then
