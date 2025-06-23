@@ -34,33 +34,81 @@ jobs:
           # Get previous tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           
-          # Generate changelog from conventional commits
+          # Generate changelog from conventional commits with commit hashes and links
           if [ -n "$PREV_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"%s" $PREV_TAG..HEAD)
+            COMMITS=$(git log --pretty=format:"%H|%s|%an" $PREV_TAG..HEAD)
           else
-            COMMITS=$(git log --pretty=format:"%s")
+            COMMITS=$(git log --pretty=format:"%H|%s|%an")
           fi
           
           # Create release notes
           echo "## What's Changed" > release_notes.md
           echo "" >> release_notes.md
           
+          # Initialize section flags
+          FEATURES_ADDED=false
+          FIXES_ADDED=false
+          DOCS_ADDED=false
+          OTHER_ADDED=false
+          
           # Parse conventional commits
-          echo "$COMMITS" | while IFS= read -r commit; do
-            if [[ $commit =~ ^feat(\(.+\))?: ]]; then
-              echo "### ✨ Features" >> release_notes.md
-              echo "- $commit" >> release_notes.md
-            elif [[ $commit =~ ^fix(\(.+\))?: ]]; then
-              echo "### 🐛 Bug Fixes" >> release_notes.md
-              echo "- $commit" >> release_notes.md
-            elif [[ $commit =~ ^docs(\(.+\))?: ]]; then
-              echo "### 📚 Documentation" >> release_notes.md
-              echo "- $commit" >> release_notes.md
-            elif [[ $commit =~ ^(refactor|perf|test|build|ci)(\(.+\))?: ]]; then
-              echo "### 🔧 Other Changes" >> release_notes.md
-              echo "- $commit" >> release_notes.md
+          echo "$COMMITS" | while IFS='|' read -r hash message author; do
+            # Get short hash for display
+            SHORT_HASH=$(echo $hash | cut -c1-7)
+            COMMIT_URL="https://github.com/${{ github.repository }}/commit/$hash"
+            
+            if [[ $message =~ ^feat(\(.+\))?: ]]; then
+              if [ "$FEATURES_ADDED" = false ]; then
+                echo "" >> release_notes.md
+                echo "### ✨ Features" >> release_notes.md
+                FEATURES_ADDED=true
+              fi
+              echo "- $message ([${SHORT_HASH}]($COMMIT_URL)) by @$author" >> release_notes.md
+            elif [[ $message =~ ^fix(\(.+\))?: ]]; then
+              if [ "$FIXES_ADDED" = false ]; then
+                echo "" >> release_notes.md
+                echo "### 🐛 Bug Fixes" >> release_notes.md
+                FIXES_ADDED=true
+              fi
+              echo "- $message ([${SHORT_HASH}]($COMMIT_URL)) by @$author" >> release_notes.md
+            elif [[ $message =~ ^docs(\(.+\))?: ]]; then
+              if [ "$DOCS_ADDED" = false ]; then
+                echo "" >> release_notes.md
+                echo "### 📚 Documentation" >> release_notes.md
+                DOCS_ADDED=true
+              fi
+              echo "- $message ([${SHORT_HASH}]($COMMIT_URL)) by @$author" >> release_notes.md
+            elif [[ $message =~ ^(refactor|perf|test|build|ci|style|chore)(\(.+\))?: ]]; then
+              if [ "$OTHER_ADDED" = false ]; then
+                echo "" >> release_notes.md
+                echo "### 🔧 Other Changes" >> release_notes.md
+                OTHER_ADDED=true
+              fi
+              echo "- $message ([${SHORT_HASH}]($COMMIT_URL)) by @$author" >> release_notes.md
             fi
           done
+          
+          # Add contributors section
+          echo "" >> release_notes.md
+          echo "### 👥 Contributors" >> release_notes.md
+          echo "" >> release_notes.md
+          
+          # Get unique contributors
+          if [ -n "$PREV_TAG" ]; then
+            CONTRIBUTORS=$(git log --pretty=format:"%an" $PREV_TAG..HEAD | sort | uniq)
+          else
+            CONTRIBUTORS=$(git log --pretty=format:"%an" | sort | uniq)
+          fi
+          
+          echo "$CONTRIBUTORS" | while IFS= read -r contributor; do
+            echo "- @$contributor" >> release_notes.md
+          done
+          
+          # Add comparison link if previous tag exists
+          if [ -n "$PREV_TAG" ]; then
+            echo "" >> release_notes.md
+            echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$PREV_TAG...$TAG_NAME" >> release_notes.md
+          fi
           
           # Set output
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
